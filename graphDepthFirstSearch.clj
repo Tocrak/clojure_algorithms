@@ -6,9 +6,6 @@
 (defrecord dListNode [next data prev])
 (defrecord dList [head tail])
 
-(defn makeDList []
-  (dList. (ref nil) (ref nil)))
-
 (defn dListEmpty [lst]
   (nil? (deref (:tail lst))))
 
@@ -82,6 +79,7 @@
         (ref-set (:status (get @(:vertices g) (get @(:vertexMap g) currentNode)))
           2)
         ;; some code to process the graph node if necessary
+        (println currentNode)
         (ref-set (:status (get @(:vertices g) (get @(:vertexMap g) currentNode)))
           3)
         (doseq [neighbour @(:neighbours (get @(:vertices g) (get @(:vertexMap g) currentNode)))]
@@ -97,14 +95,16 @@
         (str "Graph is connected")
         (str "Graph is disconnected. Number of connected components is: " groupCount)))))
 
-(defn dfs [g label]
+(defn dfs [g & [label]]
   (statusReset g)
   (let [opQueue (dList. (ref nil) (ref nil))
         vertCount 0
         groupCount 0]
-    (dListPrepend opQueue label)
+    (if (nil? label)
+      (dListAppend opQueue (:label (get @(:vertices g) 0)))
+      (dListAppend opQueue label))
     (dfsMain g opQueue vertCount (inc groupCount))))
 
 ======================================================
 
-(dfs g "Prague")
+(dfs g)

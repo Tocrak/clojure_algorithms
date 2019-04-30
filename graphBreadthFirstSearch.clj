@@ -4,10 +4,6 @@
 (defrecord dListNode [next data prev])
 (defrecord dList [head tail])
 
-;;creates an empty  double linked list
-(defn makeDList []
-  (dList. (ref nil) (ref nil)))
-
 ;;looks if the  double linked list is empty
 (defn dListEmpty [lst]
   (nil? (deref (:tail lst))))
@@ -105,6 +101,7 @@
         (ref-set (:status (get @(:vertices g) (get @(:vertexMap g) currentNode)))
           2)
         ;; some code to process the graph node if necessary
+        (println currentNode)
         (ref-set (:status (get @(:vertices g) (get @(:vertexMap g) currentNode)))
           3)
         (doseq [neighbour @(:neighbours (get @(:vertices g) (get @(:vertexMap g) currentNode)))]
@@ -121,14 +118,16 @@
         (str "Graph is disconnected. Number of connected components is: " groupCount)))))
 
 ;;the starter function that takes the graph and a label of an vertex
-(defn bfs [g label]
+(defn bfs [g & [label]]
   (statusReset g)
   (let [opQueue (dList. (ref nil) (ref nil))
         vertCount 0
         groupCount 0]
-    (dListAppend opQueue label)
+    (if (nil? label)
+      (dListAppend opQueue (:label (get @(:vertices g) 0)))
+      (dListAppend opQueue label))
     (bfsMain g opQueue vertCount (inc groupCount))))
 
 ======================================================
 
-(bfs g "Prague")
+(bfs g)
