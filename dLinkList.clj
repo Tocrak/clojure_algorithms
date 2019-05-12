@@ -83,6 +83,42 @@
         (deref (:next node))
         (func sum (:data node)))
       sum)))
+
+(defn dListDeleteElement [lst element]
+  (loop [node (deref (:head lst))]
+    (when (not (nil? node))
+      (if (= (:data node) element)
+        (dosync
+          (if (and (nil? @(:prev node))
+                   (nil? @(:next node)))
+            (do
+              (ref-set (:head lst)
+                nil)
+              (ref-set (:tail lst)
+                nil))
+            (if (nil? @(:prev node))
+              (do
+                (ref-set (:prev @(:next node))
+                  nil)
+                (ref-set (:head lst)
+                  @(:next node))
+                (ref-set (:next node)
+                  nil))
+              (if (nil? @(:next node))
+                (do
+                  (ref-set (:next @(:prev node))
+                    nil)
+                  (ref-set (:tail lst)
+                    @(:prev node))
+                  (ref-set (:prev node)
+                    nil))
+                (do
+                  (ref-set (:next @(:prev node))
+                    @(:next node))
+                  (ref-set (:prev @(:next node))
+                    @(:prev node))))))))
+      (recur (deref (:next node))))))
+
 ======================================================
 
 (def list1 (makeDList))
@@ -126,3 +162,13 @@ dListRestRev list1
 (if (nil? (deref (:next (deref (:head list1)))))
  (:data (deref (:head list1)))
  (println "Empty"))
+
+(def list2 (makeDList))
+(dListAppend list2 1)
+(dListAppend list2 2)
+(dListAppend list2 3)
+(dListAppend list2 4)
+(dListAppend list2 5)
+(dListIterForw list2 println)
+
+(dListDeleteElement list2 3)

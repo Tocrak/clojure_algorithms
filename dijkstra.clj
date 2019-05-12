@@ -97,12 +97,13 @@
         (dListAppend path start)
         (println start)
         (loop [currentNode start]
-          (doseq [neighbour @(:neighbours (get @(:vertices g) (get @(:vertexMap g) currentNode)))]
-            (when (= (dec @(:hops (get @(:vertices g) (get @(:vertexMap g) currentNode))))
-                     @(:hops (get @(:vertices g) (get @(:vertexMap g) neighbour))))
-              (dListAppend path neighbour)
-              (println neighbour)))
-          (recur (dListLast path)))))))
+          (when (not (= finish (dListLast path)))
+            (doseq [neighbour @(:neighbours (get @(:vertices g) (get @(:vertexMap g) currentNode)))]
+              (when (= (dec @(:hops (get @(:vertices g) (get @(:vertexMap g) currentNode)))
+                         @(:hops (get @(:vertices g) (get @(:vertexMap g) neighbour)))))
+                (dListAppend path neighbour)
+                (println neighbour)))
+            (recur (dListLast path))))))))
 
 (defn dijikstra [g start finish]
   (verticesReset g)
