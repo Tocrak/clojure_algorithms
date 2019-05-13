@@ -48,12 +48,14 @@
              (:weight neighbour)))))))
 
 
+
+
 ;; !!! GRAPH PART !!!
 ;; !!! vertex states: unseen(0) open(1) current(2) visited(3)
 
 (defrecord graph [vertices vertexMap])
-(defrecord vertex [label status neighbours distance])
-(defrecord neighbour [index weight])
+(defrecord vertex [label status neigbors distance])
+(defrecord neigbor [index weight])
 
 (defn makeGraph []
   (graph. (ref []) (ref {})))
@@ -63,16 +65,16 @@
     (ref-set (:vertexMap g)
       (assoc @(:vertexMap g) label (count @(:vertices g))))
     (ref-set (:vertices g)
-      (conj @(:vertices g) (vertex. label (ref 0) (ref ()) (ref nil))))))
+      (conj @(:vertices g) (vertex. label (ref 0) (ref ()) (ref 0))))))
 
 (defn graphAddEdge [g l1 l2 w]
   (dosync
-    (ref-set (:neighbours (get @(:vertices g) (get @(:vertexMap g) l1)))
-      (conj @(:neighbours (get @(:vertices g) (get @(:vertexMap g) l1)))
-        (neighbour. (get @(:vertexMap g) l2) w)))
-    (ref-set (:neighbours (get @(:vertices g) (get @(:vertexMap g) l2)))
-      (conj @(:neighbours (get @(:vertices g) (get @(:vertexMap g) l2)))
-        (neighbour. (get @(:vertexMap g) l1) w)))))
+    (ref-set (:neigbors (get @(:vertices g) (get @(:vertexMap g) l1)))
+      (conj @(:neigbors (get @(:vertices g) (get @(:vertexMap g) l1)))
+        (neigbor. (get @(:vertexMap g) l2) w)))
+    (ref-set (:neigbors (get @(:vertices g) (get @(:vertexMap g) l2)))
+      (conj @(:neigbors (get @(:vertices g) (get @(:vertexMap g) l2)))
+        (neigbor. (get @(:vertexMap g) l1) w)))))
 
 (defn verticesReset [g]
   (doseq [vertex @(:vertices g)]
@@ -97,31 +99,31 @@
     @selectedVertex))
 
 (defn selectMinDistance [currentVertex g]
-  (with-local-vars [selectedVertex (first @(:neighbours (get @(:vertices g) (get @(:vertexMap g) currentVertex))))]
-    (doseq [neighbour @(:neighbours (get @(:vertices g) (get @(:vertexMap g) currentVertex)))]
-      (if (< @(:distance (get @(:vertices g) (:index neighbour)))
+  (with-local-vars [selectedVertex (first @(:neigbors (get @(:vertices g) (get @(:vertexMap g) currentVertex))))]
+    (doseq [neigbor @(:neigbors (get @(:vertices g) (get @(:vertexMap g) currentVertex)))]
+      (if (< @(:distance (get @(:vertices g) (:index neigbor)))
              @(:distance (get @(:vertices g) (:index @selectedVertex))))
-        (var-set selectedVertex neighbour)))
+        (var-set selectedVertex neigbor)))
     @selectedVertex))
 
 (defn processNeighbors [currentVertex opQueue g]
-  (doseq [neighbour @(:neighbours (get @(:vertices g) (get @(:vertexMap g) currentVertex)))]
-    (if (= 0 @(:status (get @(:vertices g) (:index neighbour))))
+  (doseq [neigbor @(:neigbors (get @(:vertices g) (get @(:vertexMap g) currentVertex)))]
+    (if (= 0 @(:status (get @(:vertices g) (:index neigbor))))
       (do
-        (dListAppend opQueue (:label (get @(:vertices g) (:index neighbour))))
-        (ref-set (:status (get @(:vertices g) (:index neighbour)))
+        (dListAppend opQueue (:label (get @(:vertices g) (:index neigbor))))
+        (ref-set (:status (get @(:vertices g) (:index neigbor)))
           1)
-        (if (nil? @(:distance (get @(:vertices g) (:index neighbour))))
-          (ref-set (:distance (get @(:vertices g) (:index neighbour)))
+        (if (= 0 @(:distance (get @(:vertices g) (:index neigbor))))
+          (ref-set (:distance (get @(:vertices g) (:index neigbor)))
             (+ @(:distance (get @(:vertices g) (get @(:vertexMap g) currentVertex)))
-               (:weight neighbour)))))
-      (if (= 1 @(:status (get @(:vertices g) (:index neighbour))))
+               (:weight neigbor)))))
+      (if (= 1 @(:status (get @(:vertices g) (:index neigbor))))
         (if (< (+ @(:distance (get @(:vertices g) (get @(:vertexMap g) currentVertex)))
-                  (:weight neighbour))
-               @(:distance (get @(:vertices g) (:index neighbour))))
-          (ref-set (:distance (get @(:vertices g) (:index neighbour)))
+                  (:weight neigbor))
+               @(:distance (get @(:vertices g) (:index neigbor))))
+          (ref-set (:distance (get @(:vertices g) (:index neigbor)))
             (+ @(:distance (get @(:vertices g) (get @(:vertexMap g) currentVertex)))
-               (:weight neighbour))))))))
+               (:weight neigbor))))))))
 
 (defn dijikstraMain [g opQueue path start finish]
   (if (not (dListEmpty opQueue))
@@ -131,30 +133,26 @@
         (ref-set (:status (get @(:vertices g) (get @(:vertexMap g) currentVertex)))
           2)
         ;; some code to process the graph Vertex if necessary
-        ;;(println currentVertex @(:distance (get @(:vertices g) (get @(:vertexMap g) currentVertex))))
         (ref-set (:status (get @(:vertices g) (get @(:vertexMap g) currentVertex)))
           3)
         (processNeighbors currentVertex opQueue g))
       (dijikstraMain g opQueue path start finish))
-;;may cause some bugs if start = finish
-    (if (= nil @(:distance (get @(:vertices g) (get @(:vertexMap g) start))))
-      (str "There is no path to the destination")
+    (if (= 0 @(:distance (get @(:vertices g) (get @(:vertexMap g) start))))
+      (if (= start finish)
+        (str "You are searching for the same city")
+        (str "There is no path to the destination"))
       (do
-        (dListAppend path start)
-        (println start)
         (loop [currentVertex start]
           (when (not (= finish (dListLast path)))
-            (let [neighbour (selectMinDistance currentVertex g)]
-                (dListAppend path (:label (get @(:vertices g) (:index neighbour))))
-                (println (:label (get @(:vertices g) (:index neighbour)))))
-            (recur (dListLast path))))))))
+            (let [neigbor (selectMinDistance currentVertex g)]
+              (dListAppend path (:label (get @(:vertices g) (:index neigbor)))))
+            (recur (dListLast path))))
+        (dListIntoClojureList path)))))
 
 (defn dijikstra [g start finish]
   (verticesReset g)
   (let [opQueue (dList. (ref nil) (ref nil))
         path (dList. (ref nil) (ref nil))]
-    (dosync
-      (ref-set (:distance (get @(:vertices g) (get @(:vertexMap g) finish)))
-        0))
     (dListAppend opQueue finish)
+    (dListAppend path start)
     (dijikstraMain g opQueue path start finish)))
