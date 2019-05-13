@@ -39,7 +39,7 @@
 
 ;;creates necessary templates for graph implementation
 (defrecord graph [vertices vertexMap edges])
-(defrecord vertex [label status neighbours]) ;;index (not implemented)
+(defrecord vertex [label status neigbors]) ;;index (not implemented)
 (defrecord edge [firstVert secondVert])
 
 ;;creates an empty graph
@@ -61,10 +61,10 @@
       (conj @(:edges g)
             (edge. (get @(:vertexMap g) l1)
                    (get @(:vertexMap g) l2))))
-    (ref-set (:neighbours (get @(:vertices g) (get @(:vertexMap g) l1)))
-      (cons l2 @(:neighbours (get @(:vertices g) (get @(:vertexMap g) l1)))))
-    (ref-set (:neighbours (get @(:vertices g) (get @(:vertexMap g) l2)))
-      (cons l1 @(:neighbours (get @(:vertices g) (get @(:vertexMap g) l2)))))))
+    (ref-set (:neigbors (get @(:vertices g) (get @(:vertexMap g) l1)))
+      (cons l2 @(:neigbors (get @(:vertices g) (get @(:vertexMap g) l1)))))
+    (ref-set (:neigbors (get @(:vertices g) (get @(:vertexMap g) l2)))
+      (cons l1 @(:neigbors (get @(:vertices g) (get @(:vertexMap g) l2)))))))
 
 ;;resets the status of all vertices to unseen
 (defn statusReset [g]
@@ -104,10 +104,10 @@
         (println currentNode)
         (ref-set (:status (get @(:vertices g) (get @(:vertexMap g) currentNode)))
           3)
-        (doseq [neighbour @(:neighbours (get @(:vertices g) (get @(:vertexMap g) currentNode)))]
-          (when (= 0 @(:status (get @(:vertices g) (get @(:vertexMap g) neighbour))))
-            (dListAppend opQueue neighbour)
-            (ref-set (:status (get @(:vertices g) (get @(:vertexMap g) neighbour)))
+        (doseq [neigbor @(:neigbors (get @(:vertices g) (get @(:vertexMap g) currentNode)))]
+          (when (= 0 @(:status (get @(:vertices g) (get @(:vertexMap g) neigbor))))
+            (dListAppend opQueue neigbor)
+            (ref-set (:status (get @(:vertices g) (get @(:vertexMap g) neigbor)))
               1))))
       (bfsMain g opQueue (inc vertCount) groupCount))
     (if (< vertCount (count @(:vertices g)))
