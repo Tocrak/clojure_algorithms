@@ -3,7 +3,7 @@
 (defrecord dListVertex [next data prev])
 (defrecord dList [head tail])
 
-(defn dListEmpty [lst]
+(defn dListEmpty? [lst]
   (nil? @(:tail lst)))
 
 (defn dListAppend [lst val]
@@ -75,6 +75,12 @@
 (defn makeGraph []
   (graph. (ref []) (ref {})))
 
+(defn callVertexLabel [label g]
+  (get @(:vertices g) (get @(:vertexMap g) label)))
+
+(defn callVertexIndex [index g]
+  (get @(:vertices g) index))
+
 (defn graphAddVertex [g label]
   (dosync
     (ref-set (:vertexMap g)
@@ -84,11 +90,11 @@
 
 (defn graphAddEdge [g l1 l2 w]
   (dosync
-    (ref-set (:neighbors (get @(:vertices g) (get @(:vertexMap g) l1)))
-      (conj @(:neighbors (get @(:vertices g) (get @(:vertexMap g) l1)))
+    (ref-set (:neighbors (callVertexLabel l1 g))
+      (conj @(:neighbors (callVertexLabel l1 g))
         (neighbor. (get @(:vertexMap g) l2) w)))
-    (ref-set (:neighbors (get @(:vertices g) (get @(:vertexMap g) l2)))
-      (conj @(:neighbors (get @(:vertices g) (get @(:vertexMap g) l2)))
+    (ref-set (:neighbors (callVertexLabel l2 g))
+      (conj @(:neighbors (callVertexLabel l2 g))
         (neighbor. (get @(:vertexMap g) l1) w)))))
 
 (defn verticesReset [g]
@@ -102,74 +108,83 @@
   (with-local-vars [selectedVertex (dListFirst opQueue)]
     (loop [node @(:head opQueue)]
       (when (not (nil? node))
-        (if (< @(:distance (get @(:vertices g) (get @(:vertexMap g) (:data node))))
-               @(:distance (get @(:vertices g) (get @(:vertexMap g) @selectedVertex))))
+        (if (< @(:distance (callVertexLabel (:data node) g))
+               @(:distance (callVertexLabel @selectedVertex g)))
           (var-set selectedVertex (:data node)))
         (recur @(:next node))))
     @selectedVertex))
 
 ;;may be combined with selectFromQueue?
 (defn selectMinDistance [currentVertex g]
-  (with-local-vars [selectedVertex (first @(:neighbors (get @(:vertices g) (get @(:vertexMap g) currentVertex))))]
-    (doseq [neighbor @(:neighbors (get @(:vertices g) (get @(:vertexMap g) currentVertex)))]
-      (if (< @(:distance (get @(:vertices g) (:index neighbor)))
-             @(:distance (get @(:vertices g) (:index @selectedVertex))))
+  (with-local-vars [selectedVertex
+                    (first @(:neighbors (callVertexLabel currentVertex g)))]
+    (doseq [neighbor @(:neighbors (callVertexLabel currentVertex g))]
+      (if (< @(:distance (callVertexIndex (:index neighbor) g))
+             @(:distance (callVertexIndex (:index @selectedVertex) g)))
         (var-set selectedVertex neighbor)))
     @selectedVertex))
 
 (defn processUnseenNeighbor [currentVertex neighbor opQueue g]
-  (dListAppend opQueue (:label (get @(:vertices g) (:index neighbor))))
-  (ref-set (:status (get @(:vertices g) (:index neighbor)))
+  (dListAppend opQueue (:label (callVertexIndex (:index neighbor) g)))
+  (ref-set (:status (callVertexIndex (:index neighbor) g))
     1)
-  (if (= 0 @(:distance (get @(:vertices g) (:index neighbor))))
-    (ref-set (:distance (get @(:vertices g) (:index neighbor)))
-      (+ @(:distance (get @(:vertices g) (get @(:vertexMap g) currentVertex)))
+  (if (= 0 @(:distance (callVertexIndex (:index neighbor) g)))
+    (ref-set (:distance (callVertexIndex (:index neighbor) g))
+      (+ @(:distance (callVertexLabel currentVertex g))
          (:weight neighbor)))))
 
 (defn processOpenNeighbor [currentVertex neighbor g]
-  (if (< (+ @(:distance (get @(:vertices g) (get @(:vertexMap g) currentVertex)))
+  (if (< (+ @(:distance (callVertexLabel currentVertex g))
             (:weight neighbor))
-         @(:distance (get @(:vertices g) (:index neighbor))))
-    (ref-set (:distance (get @(:vertices g) (:index neighbor)))
-      (+ @(:distance (get @(:vertices g) (get @(:vertexMap g) currentVertex)))
+         @(:distance (callVertexIndex (:index neighbor) g)))
+    (ref-set (:distance (callVertexIndex (:index neighbor) g))
+      (+ @(:distance (callVertexLabel currentVertex g))
          (:weight neighbor)))))
 
-(defn processNeighbors [currentVertex opQueue g]
-  (doseq [neighbor @(:neighbors (get @(:vertices g) (get @(:vertexMap g) currentVertex)))]
-    (if (= 0 @(:status (get @(:vertices g) (:index neighbor))))
-      (processUnseenNeighbor currentVertex neighbor opQueue g)
-      (if (= 1 @(:status (get @(:vertices g) (:index neighbor))))
-        (processOpenNeighbor currentVertex neighbor g)))))
+(defn processNeighborUsingHops [currentVertex neighbor opQueue g]
+  (dListAppend opQueue (:label (callVertexIndex (:index neighbor) g)))
+  (ref-set (:status (callVertexIndex (:index neighbor) g))
+    1)
+  (ref-set (:distance (callVertexIndex (:index neighbor) g))
+    (inc @(:distance (callVertexLabel currentVertex g)))))
 
-(defn processCurrentVertex [opQueue g]
+(defn processNeighbors [currentVertex opQueue g hops]
+  (if hops
+    (doseq [neighbor @(:neighbors (callVertexLabel currentVertex g))]
+      (when (= 0 @(:status (callVertexIndex (:index neighbor) g)))
+        (processNeighborUsingHops currentVertex neighbor opQueue g)))
+    (doseq [neighbor @(:neighbors (callVertexLabel currentVertex g))]
+      (if (= 0 @(:status (callVertexIndex (:index neighbor) g)))
+        (processUnseenNeighbor currentVertex neighbor opQueue g)
+        (if (= 1 @(:status (callVertexIndex (:index neighbor) g)))
+          (processOpenNeighbor currentVertex neighbor g))))))
+
+(defn processCurrentVertex [opQueue g hops]
   (let [currentVertex (selectFromQueue opQueue g)]
     (dosync
       (dListDeleteElement opQueue currentVertex)
-      (ref-set (:status (get @(:vertices g) (get @(:vertexMap g) currentVertex)))
+      (ref-set (:status (callVertexLabel currentVertex g))
         2)
       ;; some code to process the graph Vertex if necessary
-      (ref-set (:status (get @(:vertices g) (get @(:vertexMap g) currentVertex)))
+      (ref-set (:status (callVertexLabel currentVertex g))
         3)
-      (processNeighbors currentVertex opQueue g))))
+      (processNeighbors currentVertex opQueue g hops))))
 
-(defn createPathList [path start finish g]
-  (loop [currentVertex start]
-    (when (not (= finish (dListLast path)))
+(defn dijikstraMarkingGraph [opQueue g hops]
+  (when (not (dListEmpty? opQueue))
+    (processCurrentVertex opQueue g hops)
+    (dijikstraMarkingGraph opQueue g hops)))
+
+(defn dijikstraCreatePath [path g]
+  (loop [currentVertex (dListFirst path)]
+    (when (not (= 0
+                  @(:distance (callVertexLabel currentVertex g))))
       (let [neighbor (selectMinDistance currentVertex g)]
-        (dListAppend path (:label (get @(:vertices g) (:index neighbor)))))
+        (dListAppend path (:label (callVertexIndex (:index neighbor) g))))
       (recur (dListLast path))))
   (dListIntoClojureList path))
 
-(defn dijikstraMain [g opQueue path start finish]
-  (if (not (dListEmpty opQueue))
-    (do
-      (processCurrentVertex opQueue g)
-      (dijikstraMain g opQueue path start finish))
-    (if (= 0 @(:distance (get @(:vertices g) (get @(:vertexMap g) start))))
-      (str "There is no path to the destination")
-      (createPathList path start finish g))))
-
-(defn dijikstra [g start finish]
+(defn dijikstra [g start finish & [hops]]
   (verticesReset g)
   (let [opQueue (dList. (ref nil) (ref nil))
         path (dList. (ref nil) (ref nil))]
@@ -177,7 +192,13 @@
     (dListAppend path start)
     (if (= start finish)
       (dListIntoClojureList path)
-      (dijikstraMain g opQueue path start finish))))
+      (if hops
+        (do
+          (dijikstraMarkingGraph opQueue g true)
+          (dijikstraCreatePath path g))
+        (do
+          (dijikstraMarkingGraph opQueue g false)
+          (dijikstraCreatePath path g))))))
 
 ======================================================
 
@@ -186,3 +207,46 @@
 (dijikstra g "Prague" "Alessandria") ;;for ICA 2
 
 (dijikstra g "Prague" "Catania") ;;for ICA 2
+
+(comment
+ to add easier the vertices use a list then convert to a vector
+ vertexMap may be created using a BST
+ neigbors list may be created using single/double linked list
+ BST for open set)
+
+(comment to do list:
+  1. separate the marking and backtracking part (y)
+  2. make it work with both hops and weights (y)
+  3. optimise the calling of values (y)
+  4. transform the neigbors simple list into single linked list (n) /optional
+  5. make default distance infinity/big value (n) /optional
+  6. general optimisation, if possible (n))
+
+;;for debugging
+(defn graphPrint [g]
+  (doseq [vertex @(:vertices g)]
+    (println (str "Label: " (:label vertex) ";"))
+    (println (str "Status: " @(:status vertex) ";"))
+    (println (str "Distance: " @(:distance vertex) ";"))
+    (println (str "Neighbors: "))
+    (doseq [neighbor @(:neighbors vertex)]
+      (println "  Index: " (:index neighbor) ";")
+      (println "  Weight: " (:weight neighbor) ";"))
+    (newline)))
+
+(def g1 (makeGraph))
+(graphAddVertex g1 "d")
+(graphAddVertex g1 "a")
+(graphAddVertex g1 "b")
+(graphAddVertex g1 "c")
+(graphAddVertex g1 "e")
+(graphAddVertex g1 "g")
+(graphAddVertex g1 "f")
+(graphAddEdge g1 "a" "f" 1)
+(graphAddEdge g1 "g" "f" 4)
+(graphAddEdge g1 "b" "g" 9)
+(graphAddEdge g1 "b" "c" 6)
+(graphAddEdge g1 "a" "c" 2)
+(graphAddEdge g1 "a" "d" 3)
+(graphAddEdge g1 "b" "e" 5)
+(graphPrint g1)

@@ -72,6 +72,12 @@
                   " -- "
                   (:label (get @(:vertices g) (:secondVert edge)))))))
 
+(defn graphPrint [g]
+  (doseq [vertex @(:vertices g)]
+    (println (str "Label: " (:label vertex))
+             (str "Status: " @(:status vertex))
+             (str "Distance: " @(:distance vertex))
+             (str "Neighbors: " @(:neighbors vertex)))))
 
 (get @(:vertexMap g) l1)
 (get @(:vertexMap g) label)
