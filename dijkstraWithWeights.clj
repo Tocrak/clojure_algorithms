@@ -177,8 +177,7 @@
 
 (defn dijikstraCreatePath [path g]
   (loop [currentVertex (dListFirst path)]
-    (when (not (= 0
-                  @(:distance (callVertexLabel currentVertex g))))
+    (when (not (= 0 @(:distance (callVertexLabel currentVertex g))))
       (let [neighbor (selectMinDistance currentVertex g)]
         (dListAppend path (:label (callVertexIndex (:index neighbor) g))))
       (recur (dListLast path))))
@@ -192,12 +191,12 @@
     (dListAppend path start)
     (if (= start finish)
       (dListIntoClojureList path)
-      (if hops
-        (do
+      (do
+        (if hops
           (dijikstraMarkingGraph opQueue g true)
-          (dijikstraCreatePath path g))
-        (do
-          (dijikstraMarkingGraph opQueue g false)
+          (dijikstraMarkingGraph opQueue g false))
+        (if (= 0 @(:distance (callVertexLabel start g)))
+          (str "There is no path to the destination")
           (dijikstraCreatePath path g))))))
 
 ======================================================
