@@ -61,6 +61,22 @@
         (recur (deref (:prev node)))))
     @resultList))
 
+;; !!! SINGLE LINKED LIST PART !!!
+
+(defrecord sListNode [next data])
+
+(defrecord sList [head])
+
+(defn sListRemFirst [lst]
+  (dosync
+    (ref-set (:head lst)
+             @(:next @(:head lst)))))
+
+(defn selectFromSList [lst]
+  (let [index (:data @(:head lst))]
+    (sListRemFirst lst)
+    index))
+
 ;; !!! GRAPH PART !!!
 ;; !!! vertex states: unseen(0) open(1) current(2) visited(3)
 
@@ -99,17 +115,27 @@
       (ref-set (:status vertex) 0)
       (ref-set (:distance vertex) 0))))
 
-;;may be combined with selectMinDistance?
-(defn selectFromQueue [opQueue g]
-  (with-local-vars [selectedVertex @(:head opQueue)]
-    (loop [node @(:head opQueue)]
-      (when (not (nil? node))
-        (if (< @(:distance (callVertexLabel (:data node) g))
-               @(:distance (callVertexLabel (:data @selectedVertex) g)))
-          (var-set selectedVertex node))
-        (recur @(:next node))))
-    (dListDeleteElement @selectedVertex opQueue)
-    (:data @selectedVertex)))
+(defn sListInsertLoop [lst element g]
+  (loop [node @(:head lst)]
+    (if (not (nil? @(:next node)))
+      (do (if (and (>= @(:distance (callVertexLabel (:data node) g))
+                     @(:distance (callVertexLabel element g)))
+                 (< @(:distance (callVertexLabel (:data @(:next node)) g))
+                    @(:distance (callVertexLabel element g))))
+            (ref-set (:next node)
+              (sListNode. (ref @(:next node)) element)))
+        (recur @(:next node)))
+      (ref-set (:next node)
+        (sListNode. (ref nil) element)))))
+
+(defn sListInsert [lst element g]
+  (dosync
+    (if (or (nil? @(:head lst))
+            (< @(:distance (callVertexLabel (:data @(:head lst)) g))
+               @(:distance (callVertexLabel element g))))
+      (ref-set (:head lst)
+               (sListNode. (ref @(:head lst)) element))
+      (sListInsertLoop lst element g))))
 
 ;;may be combined with selectFromQueue?
 (defn selectMinDistance [currentVertex g]
@@ -122,7 +148,7 @@
     @selectedVertex))
 
 (defn processUnseenNeighbor [currentVertex neighbor opQueue g]
-  (dListAppend opQueue (:label (callVertexIndex (:index neighbor) g)))
+  (sListInsert opQueue (:label (callVertexIndex (:index neighbor) g)) g)
   (ref-set (:status (callVertexIndex (:index neighbor) g))
     1)
   (if (= 0 @(:distance (callVertexIndex (:index neighbor) g)))
@@ -139,7 +165,7 @@
          (:weight neighbor)))))
 
 (defn processNeighborUsingHops [currentVertex neighbor opQueue g]
-  (dListAppend opQueue (:label (callVertexIndex (:index neighbor) g)))
+  (sListInsert opQueue (:label (callVertexIndex (:index neighbor) g)) g)
   (ref-set (:status (callVertexIndex (:index neighbor) g))
     1)
   (ref-set (:distance (callVertexIndex (:index neighbor) g))
@@ -157,7 +183,7 @@
           (processOpenNeighbor currentVertex neighbor g))))))
 
 (defn processCurrentVertex [opQueue g hops]
-  (let [currentVertex (selectFromQueue opQueue g)]
+  (let [currentVertex (selectFromSList opQueue)]
     (dosync
       (ref-set (:status (callVertexLabel currentVertex g))
         2)
@@ -166,7 +192,7 @@
         3))))
 
 (defn dijikstraMarkingGraph [opQueue g hops]
-  (when (not (dListEmpty? opQueue))
+  (when (not (nil? @(:head opQueue)))
     (processCurrentVertex opQueue g hops)
     (dijikstraMarkingGraph opQueue g hops)))
 
@@ -180,9 +206,9 @@
 
 (defn dijikstra [g start finish & [hops]]
   (verticesReset g)
-  (let [opQueue (dList. (ref nil) (ref nil))
+  (let [opQueue (sList. (ref nil))
         path (dList. (ref nil) (ref nil))]
-    (dListAppend opQueue finish)
+    (sListInsert opQueue finish g)
     (dListAppend path start)
     (if (= start finish)
       (dListIntoClojureList path)
