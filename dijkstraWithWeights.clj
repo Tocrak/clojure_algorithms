@@ -1,6 +1,6 @@
-;; !!! DOUBLE LINKED LIST PART !!!
+;;  DOUBLE LINKED LIST PART
 
-(defrecord dListVertex [next data prev])
+(defrecord dListNode [next data prev])
 (defrecord dList [head tail])
 
 (defn dListEmpty? [lst]
@@ -9,7 +9,7 @@
 (defn dListAppend [lst val]
   (dosync
     (ref-set (:tail lst)
-      (dListVertex. (ref nil) val (ref @(:tail lst))))
+      (dListNode. (ref nil) val (ref @(:tail lst))))
     (if (not (nil? @(:head lst)))
         (ref-set (:next @(:prev @(:tail lst)))
           @(:tail lst))
@@ -22,36 +22,48 @@
 (defn dListLast [lst]
   (:data @(:tail lst)))
 
+(defn dListRemFirst [node lst]
+  (ref-set (:prev @(:next node))
+    nil)
+  (ref-set (:head lst)
+    @(:next node))
+  (ref-set (:next node)
+    nil))
+
+(defn dListRemLast [node lst]
+  (ref-set (:next @(:prev node))
+    nil)
+  (ref-set (:tail lst)
+    @(:prev node))
+  (ref-set (:prev node)
+    nil))
+
+(defn dListRemMiddle [node]
+  (ref-set (:next @(:prev node))
+    @(:next node))
+  (ref-set (:prev @(:next node))
+    @(:prev node))
+  (ref-set (:prev node)
+    nil)
+  (ref-set (:next node)
+    nil))
+
+(defn dListRemAll [lst]
+  (ref-set (:head lst)
+    nil)
+  (ref-set (:tail lst)
+    nil))
+
 (defn dListDeleteElement [node lst]
   (dosync
     (if (and (nil? @(:prev node))
              (nil? @(:next node)))
-      (do
-        (ref-set (:head lst)
-          nil)
-        (ref-set (:tail lst)
-          nil))
+      (dListRemAll lst)
       (if (nil? @(:prev node))
-        (do
-          (ref-set (:prev @(:next node))
-            nil)
-          (ref-set (:head lst)
-            @(:next node))
-          (ref-set (:next node)
-            nil))
+        (dListRemFirst node lst)
         (if (nil? @(:next node))
-          (do
-            (ref-set (:next @(:prev node))
-              nil)
-            (ref-set (:tail lst)
-              @(:prev node))
-            (ref-set (:prev node)
-              nil))
-          (do
-            (ref-set (:next @(:prev node))
-              @(:next node))
-            (ref-set (:prev @(:next node))
-              @(:prev node))))))))
+          (dListRemLast node lst)
+          (dListRemMiddle node))))))
 
 (defn dListIntoClojureList [dList]
   (with-local-vars [resultList ()]
@@ -61,8 +73,8 @@
         (recur (deref (:prev node)))))
     @resultList))
 
-;; !!! GRAPH PART !!!
-;; !!! vertex states: unseen(0) open(1) current(2) visited(3)
+;;  GRAPH PART
+;;  vertex states: unseen(0) open(1) current(2) visited(3)
 
 (defrecord graph [vertices vertexMap])
 (defrecord vertex [label status neighbors distance])
@@ -165,12 +177,12 @@
       (ref-set (:status (callVertexLabel currentVertex g))
         3))))
 
-(defn dijikstraMarkingGraph [opQueue g hops]
+(defn dijkstraMarkingGraph [opQueue g hops]
   (when (not (dListEmpty? opQueue))
     (processCurrentVertex opQueue g hops)
-    (dijikstraMarkingGraph opQueue g hops)))
+    (dijkstraMarkingGraph opQueue g hops)))
 
-(defn dijikstraCreatePath [path g]
+(defn dijkstraCreatePath [path g]
   (loop [currentVertex (dListFirst path)]
     (when (not (= 0 @(:distance (callVertexLabel currentVertex g))))
       (let [neighbor (selectMinDistance currentVertex g)]
@@ -178,7 +190,7 @@
       (recur (dListLast path))))
   (dListIntoClojureList path))
 
-(defn dijikstra [g start finish & [hops]]
+(defn dijkstra [g start finish & [hops]]
   (verticesReset g)
   (let [opQueue (dList. (ref nil) (ref nil))
         path (dList. (ref nil) (ref nil))]
@@ -188,19 +200,19 @@
       (dListIntoClojureList path)
       (do
         (if hops
-          (dijikstraMarkingGraph opQueue g true)
-          (dijikstraMarkingGraph opQueue g false))
+          (dijkstraMarkingGraph opQueue g true)
+          (dijkstraMarkingGraph opQueue g false))
         (if (= 0 @(:distance (callVertexLabel start g)))
-          (str "There is no path to the destination")
-          (dijikstraCreatePath path g))))))
+          (list)
+          (dijkstraCreatePath path g))))))
 
 ======================================================
 
-(dijikstra g "Prague" "Prague") ;;for debugging
+(dijkstra g "Prague" "Prague") ;;for debugging
 
-(dijikstra g "Prague" "Alessandria") ;;for ICA 2
+(dijkstra g "Prague" "Alessandria") ;;for ICA 2
 
-(dijikstra g "Prague" "Catania") ;;for ICA 2
+(dijkstra g "Prague" "Catania") ;;for ICA 2
 
 (comment
  to add easier the vertices use a list then convert to a vector
